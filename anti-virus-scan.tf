@@ -6,6 +6,11 @@
 # IAM
 #
 
+data "aws_ssm_parameter" "datadog_api_key" {
+  count = var.dd_parameter == "" ? 0 : 1
+  name  = var.dd_parameter
+}
+
 data "aws_iam_policy_document" "assume_role_scan" {
   statement {
     effect = "Allow"
@@ -40,13 +45,13 @@ data "aws_iam_policy_document" "main_scan" {
 
     effect = "Allow"
 
-    actions = [
+    actions = concat([
       "s3:GetObject",
       "s3:GetObjectTagging",
       "s3:GetObjectVersion",
       "s3:PutObjectTagging",
       "s3:PutObjectVersionTagging",
-    ]
+    ], var.av_delete_infected_files == "True" ? ["s3:DeleteObject"] : [])
 
     resources = formatlist("%s/*", [for b in data.aws_s3_bucket.main_scan : b.arn])
   }
@@ -138,10 +143,10 @@ resource "aws_s3_bucket_notification" "main_scan" {
   dynamic "lambda_function" {
     for_each = toset(each.value.suffix != null ? each.value.suffix : [])
     content {
-      id                  = "${data.aws_s3_bucket.main_scan[each.value.bucket].id}-suffix-${lambda_function.value}"
+      id                  = replace("${data.aws_s3_bucket.main_scan[each.value.bucket].id}-suffix-${lambda_function.value}", "*", "all")
       lambda_function_arn = aws_lambda_function.main_scan.arn
       events              = ["s3:ObjectCreated:*"]
-      filter_suffix       = lambda_function.value
+      filter_suffix       = lambda_function.value == "*" ? null : lambda_function.value
     }
   }
 
@@ -151,7 +156,7 @@ resource "aws_s3_bucket_notification" "main_scan" {
       id                  = "${data.aws_s3_bucket.main_scan[each.value.bucket].id}-prefix-${lambda_function.value}"
       lambda_function_arn = aws_lambda_function.main_scan.arn
       events              = ["s3:ObjectCreated:*"]
-      filter_prefix       = lambda_function.value
+      filter_prefix       = lambda_function.value == "*" ? null : lambda_function.value
     }
   }
 }
@@ -202,6 +207,7 @@ resource "aws_lambda_function" "main_scan" {
       AV_STATUS_SNS_PUBLISH_CLEAN    = var.av_status_sns_publish_clean
       AV_STATUS_SNS_PUBLISH_INFECTED = var.av_status_sns_publish_infected
       AV_DELETE_INFECTED_FILES       = var.av_delete_infected_files
+      DATADOG_API_KEY                = var.dd_parameter == "" ? "" : data.aws_ssm_parameter.datadog_api_key[0].value
     }
   }
 
