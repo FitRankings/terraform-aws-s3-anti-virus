@@ -6,6 +6,11 @@
 # IAM
 #
 
+data "aws_ssm_parameter" "datadog_api_key" {
+  count = var.dd_parameter == "" ? 0 : 1
+  name  = var.dd_parameter
+}
+
 data "aws_iam_policy_document" "assume_role_scan" {
   statement {
     effect = "Allow"
@@ -40,15 +45,15 @@ data "aws_iam_policy_document" "main_scan" {
 
     effect = "Allow"
 
-    actions = [
+    actions = concat([
       "s3:GetObject",
       "s3:GetObjectTagging",
       "s3:GetObjectVersion",
       "s3:PutObjectTagging",
       "s3:PutObjectVersionTagging",
-    ]
+    ], var.av_delete_infected_files == "True" ? ["s3:DeleteObject"] : [])
 
-    resources = formatlist("%s/*", data.aws_s3_bucket.main_scan.*.arn)
+    resources = formatlist("%s/*", [for b in data.aws_s3_bucket.main_scan : b.arn])
   }
 
   statement {
@@ -88,7 +93,7 @@ data "aws_iam_policy_document" "main_scan" {
       "kms:Decrypt",
     ]
 
-    resources = formatlist("%s/*", data.aws_s3_bucket.main_scan.*.arn)
+    resources = formatlist("%s/*", [for b in data.aws_s3_bucket.main_scan : b.arn])
   }
 
   dynamic "statement" {
@@ -125,18 +130,34 @@ resource "aws_iam_role_policy" "main_scan" {
 #
 
 data "aws_s3_bucket" "main_scan" {
-  count  = length(var.av_scan_buckets)
-  bucket = var.av_scan_buckets[count.index]
+  for_each = { for bucket in var.av_scan_buckets : "${bucket.bucket}" => bucket }
+
+  bucket = each.value.bucket
 }
 
 resource "aws_s3_bucket_notification" "main_scan" {
-  count  = length(var.av_scan_buckets)
-  bucket = element(data.aws_s3_bucket.main_scan.*.id, count.index)
+  for_each = { for bucket in var.av_scan_buckets : "${bucket.bucket}" => bucket }
 
-  lambda_function {
-    id                  = element(data.aws_s3_bucket.main_scan.*.id, count.index)
-    lambda_function_arn = aws_lambda_function.main_scan.arn
-    events              = ["s3:ObjectCreated:*"]
+  bucket = each.value.bucket
+
+  dynamic "lambda_function" {
+    for_each = toset(each.value.suffix != null ? each.value.suffix : [])
+    content {
+      id                  = replace("${data.aws_s3_bucket.main_scan[each.value.bucket].id}-suffix-${lambda_function.value}", "*", "all")
+      lambda_function_arn = aws_lambda_function.main_scan.arn
+      events              = ["s3:ObjectCreated:*"]
+      filter_suffix       = lambda_function.value == "*" ? null : lambda_function.value
+    }
+  }
+
+  dynamic "lambda_function" {
+    for_each = toset(each.value.prefix != null ? each.value.prefix : [])
+    content {
+      id                  = "${data.aws_s3_bucket.main_scan[each.value.bucket].id}-prefix-${lambda_function.value}"
+      lambda_function_arn = aws_lambda_function.main_scan.arn
+      events              = ["s3:ObjectCreated:*"]
+      filter_prefix       = lambda_function.value == "*" ? null : lambda_function.value
+    }
   }
 }
 
@@ -186,6 +207,7 @@ resource "aws_lambda_function" "main_scan" {
       AV_STATUS_SNS_PUBLISH_CLEAN    = var.av_status_sns_publish_clean
       AV_STATUS_SNS_PUBLISH_INFECTED = var.av_status_sns_publish_infected
       AV_DELETE_INFECTED_FILES       = var.av_delete_infected_files
+      DATADOG_API_KEY                = var.dd_parameter == "" ? "" : data.aws_ssm_parameter.datadog_api_key[0].value
     }
   }
 
@@ -198,7 +220,7 @@ resource "aws_lambda_function" "main_scan" {
 }
 
 resource "aws_lambda_permission" "main_scan" {
-  count = length(var.av_scan_buckets)
+  for_each = { for bucket in var.av_scan_buckets : bucket.bucket => bucket }
 
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.main_scan.function_name
@@ -206,7 +228,6 @@ resource "aws_lambda_permission" "main_scan" {
   principal = "s3.amazonaws.com"
 
   source_account = data.aws_caller_identity.current.account_id
-  source_arn     = element(data.aws_s3_bucket.main_scan.*.arn, count.index)
-
-  statement_id = replace("${var.name_scan}-${element(data.aws_s3_bucket.main_scan.*.id, count.index)}", ".", "-")
+  source_arn     = data.aws_s3_bucket.main_scan[each.value.bucket].arn
+  statement_id   = replace("${var.name_scan}-${data.aws_s3_bucket.main_scan[each.value.bucket].id}", ".", "-")
 }

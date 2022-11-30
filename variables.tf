@@ -50,8 +50,13 @@ variable "av_update_minutes" {
 }
 
 variable "av_scan_buckets" {
-  description = "A list of S3 bucket names to scan for viruses."
-  type        = list(string)
+  description = "A list of S3 bucket configurations to scan for viruses."
+  type = list(object({
+    bucket = string
+    prefix = list(string)
+    suffix = list(string)
+  }))
+  default = []
 }
 
 variable "permissions_boundary" {
@@ -114,6 +119,12 @@ variable "av_delete_infected_files" {
   description = "Set it True in order to delete infected values."
   type        = string
   default     = "False"
+}
+
+variable "dd_parameter" {
+  description = "parameter store name for the Datadog api key "
+  default     = ""
+  type        = string
 }
 
 variable "cloudwatch_kms_arn" {

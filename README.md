@@ -110,6 +110,7 @@ No modules.
 | [aws_partition.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 | [aws_s3_bucket.main_scan](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/s3_bucket) | data source |
+| [aws_ssm_parameter.datadog_api_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ssm_parameter) | data source |
 
 ## Inputs
 
@@ -118,7 +119,7 @@ No modules.
 | <a name="input_av_definition_s3_bucket"></a> [av\_definition\_s3\_bucket](#input\_av\_definition\_s3\_bucket) | Bucket containing antivirus database files. | `string` | n/a | yes |
 | <a name="input_av_definition_s3_prefix"></a> [av\_definition\_s3\_prefix](#input\_av\_definition\_s3\_prefix) | Prefix for antivirus database files. | `string` | `"clamav_defs"` | no |
 | <a name="input_av_delete_infected_files"></a> [av\_delete\_infected\_files](#input\_av\_delete\_infected\_files) | Set it True in order to delete infected values. | `string` | `"False"` | no |
-| <a name="input_av_scan_buckets"></a> [av\_scan\_buckets](#input\_av\_scan\_buckets) | A list of S3 bucket names to scan for viruses. | `list(string)` | n/a | yes |
+| <a name="input_av_scan_buckets"></a> [av\_scan\_buckets](#input\_av\_scan\_buckets) | A list of S3 bucket configurations to scan for viruses. | <pre>list(object({<br>    bucket = string<br>    prefix = list(string)<br>    suffix = list(string)<br>  }))</pre> | `[]` | no |
 | <a name="input_av_scan_start_sns_arn"></a> [av\_scan\_start\_sns\_arn](#input\_av\_scan\_start\_sns\_arn) | SNS topic ARN to publish notification about start of scan (optional). | `string` | `""` | no |
 | <a name="input_av_status_sns_arn"></a> [av\_status\_sns\_arn](#input\_av\_status\_sns\_arn) | SNS topic ARN to publish scan results (optional). | `string` | `""` | no |
 | <a name="input_av_status_sns_publish_clean"></a> [av\_status\_sns\_publish\_clean](#input\_av\_status\_sns\_publish\_clean) | Publish AV\_STATUS\_CLEAN results to AV\_STATUS\_SNS\_ARN. | `string` | `"True"` | no |
@@ -126,6 +127,7 @@ No modules.
 | <a name="input_av_update_minutes"></a> [av\_update\_minutes](#input\_av\_update\_minutes) | How often to download updated Anti-Virus databases. | `string` | `180` | no |
 | <a name="input_cloudwatch_kms_arn"></a> [cloudwatch\_kms\_arn](#input\_cloudwatch\_kms\_arn) | The arn of the kms key used for encrypting the cloudwatch log groups created by this module. | `string` | `""` | no |
 | <a name="input_cloudwatch_logs_retention_days"></a> [cloudwatch\_logs\_retention\_days](#input\_cloudwatch\_logs\_retention\_days) | Number of days to keep logs in AWS CloudWatch. | `string` | `90` | no |
+| <a name="input_dd_parameter"></a> [dd\_parameter](#input\_dd\_parameter) | parameter store name for the Datadog api key | `string` | `""` | no |
 | <a name="input_lambda_package"></a> [lambda\_package](#input\_lambda\_package) | The name of the lambda package. Used for a directory tree and zip file. | `string` | `"anti-virus"` | no |
 | <a name="input_lambda_package_key"></a> [lambda\_package\_key](#input\_lambda\_package\_key) | The object key for the lambda distribution. If given, the value is used as the key in lieu of the value constructed using `lambda_package` and `lambda_version`. | `string` | `null` | no |
 | <a name="input_lambda_s3_bucket"></a> [lambda\_s3\_bucket](#input\_lambda\_s3\_bucket) | The name of the S3 bucket used to store the Lambda builds. | `string` | n/a | yes |
